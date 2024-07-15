@@ -27,7 +27,6 @@ const generateTraffic = async ({ url, keyword, stayTime, numBots }) => {
                             await page.evaluate((stayTime) => {
                                 return new Promise(resolve => setTimeout(resolve, stayTime));
                             }, stayTime); // Stay on the page for the specified time
-                            await page.screenshot({ path: `screenshot_${Date.now()}.png` });
                             found = true;
                             break;
                         }
