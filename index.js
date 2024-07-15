@@ -18,7 +18,7 @@ app.post('/generate-traffic', async (req, res) => {
         res.status(200).send({ message: 'Traffic generated successfully' });
     } catch (error) {
         console.error('Error generating traffic:', error);
-        res.status(500).send({ message: 'Failed to generate traffic' });
+         res.status(500).send(`Error generating traffic: ${error.message}`);
     }
 });
 
