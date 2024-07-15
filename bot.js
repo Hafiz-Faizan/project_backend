@@ -6,7 +6,7 @@ const generateTraffic = async ({ url, keyword, stayTime, numBots }) => {
     let browser;
     try {
         browser = await puppeteer.launch({
-            headless: false,
+            headless: true,
             args: ['--no-sandbox', '--disable-setuid-sandbox'],
             executablePath: CHROME_PATH,
         });
