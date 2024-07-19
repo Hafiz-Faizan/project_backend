@@ -103,7 +103,12 @@ app.post('/generate-traffic-by-subscription', authenticate, async (req, res) => 
         handleTrafficGeneration(url, keyword, country, userId, hitsPerDay, durationDays);
         res.status(200).send({ message: 'Traffic generation tasks are being added to the queue' });
     } catch (error) {
+<<<<<<< HEAD
         res.status(400).send(error.message);
+=======
+        console.error('Error generating traffic:', error);
+         res.status(500).send(`Error generating traffic: ${error.message}`);
+>>>>>>> 596a5297e53074bdba4063162d09fa32795e26a7
     }
 });
 
