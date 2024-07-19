@@ -1,0 +1,108 @@
+const puppeteer = require('puppeteer-core');
+
+const CHROME_PATH = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
+
+// Map countries to their respective geolocation coordinates and proxies
+const geolocationMap = {
+    'US': { latitude: 37.7749, longitude: -122.4194, proxy: '176.9.119.170:8080', acceptLanguage: 'en-US,en;q=0.9' },
+    'FR': { latitude: 48.8566, longitude: 2.3522, proxy: 'http://fr-proxy.example.com:8080', acceptLanguage: 'fr-FR,fr;q=0.9' },
+    'DE': { latitude: 52.5200, longitude: 13.4050, proxy: 'http://de-proxy.example.com:8080', acceptLanguage: 'de-DE,de;q=0.9' },
+    'ES': { latitude: 40.4168, longitude: -3.7038, proxy: 'http://es-proxy.example.com:8080', acceptLanguage: 'es-ES,es;q=0.9' },
+    // Add more countries and their coordinates and proxies as needed
+};
+
+const generateTraffic = async ({ url, keyword, stayTime, numBots, country }) => {
+    let browser;
+    try {
+        const geolocation = geolocationMap[country]; // Get geolocation and proxy based on the country
+        if (!geolocation) {
+            throw new Error(`No geolocation or proxy defined for country ${country}`);
+        }
+        const { latitude, longitude, proxy, acceptLanguage } = geolocation;
+
+        // Launch Puppeteer with the correct proxy
+        browser = await puppeteer.launch({
+            headless: false,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                `--proxy-server=${proxy}`,  // Use the specified proxy
+                '--start-maximized',       // Start the browser maximized
+                '--disable-infobars',     // Disable the info bar
+            ],
+            executablePath: CHROME_PATH,
+        });
+
+        // Function to perform a Google search and visit the target URL
+        const searchKeywordOnGoogle = async (page, keyword, url) => {
+            try {
+                const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(keyword)}`;
+                await page.setGeolocation({ latitude, longitude });
+                await page.setExtraHTTPHeaders({ 'Accept-Language': acceptLanguage });
+
+                const context = browser.defaultBrowserContext();
+                await context.overridePermissions('https://www.google.com', ['geolocation']);
+
+                await page.goto(searchUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+
+                let found = false;
+                let rank = 1;
+                for (let i = 0; i < 5; i++) { // Search through the first 5 pages
+                    const links = await page.$$eval('div.g a', as => as.map(a => a.href));
+                    for (const link of links) {
+                        if (link.includes(url)) {
+                            console.log(`URL ${url} found at rank #${rank} for keyword "${keyword}".`);
+                            await page.goto(link, { waitUntil: 'networkidle2', timeout: 60000 });
+                            await page.evaluate((stayTime) => {
+                                return new Promise(resolve => setTimeout(resolve, stayTime));
+                            }, stayTime); // Stay on the page for the specified time
+                            found = true;
+                            break;
+                        }
+                        rank++;
+                    }
+                    if (found) break;
+                    const nextButton = await page.$('a#pnnext');
+                    if (nextButton) {
+                        await nextButton.click();
+                        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 60000 });
+                    } else {
+                        break;
+                    }
+                }
+
+                if (!found) {
+                    console.log(`URL ${url} not found in the first 5 pages of Google search results for keyword "${keyword}".`);
+                }
+            } catch (err) {
+                console.error(`Error during Google search: ${err.message}`);
+                throw err;
+            }
+        };
+
+        // Create and run multiple bot instances
+        const bots = [];
+        for (let i = 0; i < numBots; i++) {
+            bots.push(new Promise(async (resolve) => {
+                const page = await browser.newPage();
+                try {
+                    await searchKeywordOnGoogle(page, keyword, url);
+                } catch (err) {
+                    console.error(`Error in bot ${i + 1}: ${err.message}`);
+                } finally {
+                    await page.close();
+                    resolve();
+                }
+            }));
+        }
+
+        await Promise.all(bots);
+    } catch (err) {
+        console.error(`Error generating traffic inside Puppeteer: ${err.message}`);
+        throw err;
+    } finally {
+        if (browser) await browser.close();
+    }
+};
+
+module.exports = { generateTraffic };
